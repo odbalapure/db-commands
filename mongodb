@@ -1,0 +1,195 @@
+==================
+MongoDB Commands
+==================
+
+Execute "use <db-name>" command, this will create a db with the specified name, if it does not exist already
+
+Create collection
+> db.createCollection("product")
+
+Insert many documents at once
+> db.product.insertMany(
+  [
+    {}, {}, {},
+  ]
+)
+
+Count documents in a collection
+> db.product.count()
+
+Sorting collections based on price
+> db.product.find().map(item => { return item }).sort(function(a, b) {return a.product_price - b.product_price})
+
+************************************************
+
+Display all documents inside a collection
+> db.product.find().pretty()
+
+Find all the information about each products
+> db.product.find({}, { "product_name": 1, "product_material": 1, _id:0 });
+NOTE: Mention 1 even the field is of type String/Number
+
+Find the product price which are between 400 to 800
+> db.product.find({$and:[{product_price:{$gte:400}},{product_price:{$lte:800}}]})
+
+Find the product price which are not between 400 to 600
+> db.product.find({"product_price":{ $not:{$gte:400.00, $lte:600.00} } })
+
+Find the product name and product material of each products
+> db.product.find({}, { "product_name": 1, "product_material": 1, _id:0 });
+
+Find the product with a row id of 10
+> db.product.find({"id": "10"});
+
+Find only the product name and product material
+> db.product.find({ "product_name": "Intelligent Fresh Chips", "product_material" : "Concrete" })
+
+Find all products which contain the value of soft in product material 
+> db.product.find({"product_material": {"$regex": "soft", $options: "i"}})
+NOTE: User "$options": "i" for case insensitivity
+
+Find products which contain product color indigo  and product price 492.00
+> db.product.find({$and:[{"product_price":492.00},{"product_color":"indigo"}]})
+NOTE: No results found
+
+10. Delete the products which product price value are same
+> db.product.find({}, { "product_name": 1, "product_material": 1 }).forEach(function(doc) {
+    db.collection.remove({_id: { $gt: doc._id }, item: doc.item, qty: doc.qty, size: doc.size, status: doc.status })
+})
+
+************************************************
+
+Delete docs with duplicate prices
+let dups = db.product.aggregate([{$group: {_id: "_id", count: {$count: {}}}}, {$match: {_id: {$ne: null}, count: {$gt:1}}}])
+let dupsArr = []
+
+dups.map((e) => {
+  return dupsArr.push(e._id);
+})
+
+Delete multiple docs
+db.product.deleteMany({product_price: {$in:[36,47]}})
+db.product.deleteMany({product_price: {$in:`${dupsArr}`}})
+
+*************************************************
+
+Aggregate function
+
+We have list of products and we need to perform some queries on it
+
+Find how many toothbrushes were sold
+> db.agg.count({ product: "toothbrush" })
+3
+
+
+Find the type of products
+> db.agg.distinct("product");
+[ "guitar", "milk", "pizza", "toothbrush" ]
+
+
+Find the total amount of money spent by each customer
+> db.agg.aggregate(
+... [
+...  {$match: {}},
+...  {$group: {_id: "$customer", total: {$sum: "$total"} }}
+... ]
+... )
+{ "_id" : "Tom", "total" : 199.99 }
+{ "_id" : "Dave", "total" : 4.75 }
+{ "_id" : "Karen", "total" : 13.25 }
+{ "_id" : "Mike", "total" : 20.83 }
+
+Match: match any entry in the collection
+
+
+Money spent on each product
+> db.agg.aggregate(
+... [
+...  {$match: {}},
+...  {$group: {_id: "$product", total: {$sum: "$total"} }}
+... ]
+... )
+{ "_id" : "toothbrush", "total" : 14.25 }
+{ "_id" : "pizza", "total" : 13.25 }
+{ "_id" : "milk", "total" : 11.33 }
+{ "_id" : "guitar", "total" : 199.99 }
+
+Money spent on each product in sorted order
+> db.agg.aggregate( [  {$match: {}},  {$group: {_id: "$product", total: {$sum: "$total"} }}, { $sort: {total: -1} } ] )
+
+
+Total money spent by Mike and Karen
+> db.agg.aggregate(
+...   [
+...     {$match: {customer: { $in: ["Mike", "Karen"] }}},
+...     {$group: {_id: "$product", total: {$sum: "$total"} }},
+...     {$sort: {total: -1}}
+...   ]
+... )
+{ "_id" : "toothbrush", "total" : 14.25 }
+{ "_id" : "milk", "total" : 11.33 }
+{ "_id" : "pizza", "total" : 8.5 }
+
+*************************************************
+
+Referencing collections
+
+The below example is for 1:N relationship. A customer can have multiple references.
+
+db.address.insert(
+{
+"address": "100A, Doha,Qatar",
+   "office address": " 200B, Doha Qatar",
+   "mailing address": "abc@gmail.com"
+}
+);
+
+db.customer.insert({
+   "name": "Gokulnath Kumar",
+   "gender": "Male",
+   "city": "Doha",
+   "country": "Qatar",
+   "Phone": "777 95057",
+   "address_ids": [
+      ObjectId("61db036051a8a984b29db454"),
+      ObjectId("61db037e51a8a984b29db455")
+     ]
+})
+
+
+> var result = db.customer.findOne({"name":"Gokulnath Kumar"},{"address_ids":1})
+> db.address.find({"_id":{"$in":result["address_ids"]}})
+{ "_id" : ObjectId("61db036051a8a984b29db454") }
+{ "_id" : ObjectId("61db037e51a8a984b29db455"), "address" : "100A, Doha,Qatar", "office address" : " 200B, Doha Qatar", "mailing address" : "abc@gmail.com" }
+
+*************************************************
+
+Finding in array of objects
+
+{
+    _id: 1,
+    name: {
+        first: 'John',
+        last: 'Backus'
+    },
+    birth: new Date('Dec 03, 1924'),
+    death: new Date('Mar 17, 2007'),
+    contribs: ['Fortran', 'ALGOL', 'Backus-Naur Form', 'FP'],
+    awards: [
+        {
+            award: 'National Medal',
+            year: 1975,
+            by: 'NSF'
+        },
+        {
+            award: 'Turing Award',
+            year: 1977,
+            by: 'ACM'
+        }
+    ]
+}
+
+elementMatch operator
+db.users.findOne({"_id": id},{awards: {$elemMatch: {award:'Turing Award', year:1977}}})
+
+*************************************************
